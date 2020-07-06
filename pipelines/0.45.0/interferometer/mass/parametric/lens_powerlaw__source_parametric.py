@@ -49,41 +49,48 @@ def set_priors_helper(dict):
     )
 
 
-# NOTE: Make it so that the GalaxyModel can be recognised. Atm it does not recognise if
+# NOTE: Make it so that the GalaxyModel can recognise if the mass profile belongs to subhalo or a SIE. Atm it does not recognise if
 # it is applied to the lens or a subhalo
-# TODO: Take as input a list of GalaxyModels (e.g. for lens, subhalo, source)
-def set_priors(GalaxyModel, priors=None):
+def set_priors(GalaxyModels, priors=None):
 
-    if not isinstance(GalaxyModel, al.GalaxyModel):
-        raise ValueError("...")
+    if isinstance(GalaxyModels, list):
+        for GalaxyModel in GalaxyModels:
+            if not isinstance(GalaxyModel, al.GalaxyModel):
+                raise ValueError("...")
+    else:
+        raise ValueError(
+            "must be a list."
+        )
 
     if priors is not None: # TODO: Check is priors is a dictionary
 
         for i_key in priors.keys():
 
-            if hasattr(GalaxyModel, i_key):
+            for GalaxyModel in GalaxyModels:
 
-                if isinstance(priors[i_key], dict):
+                if hasattr(GalaxyModel, i_key):
 
-                    for j_key, priors_dict in priors[i_key].items():
+                    if isinstance(priors[i_key], dict):
 
-                        if hasattr(
-                            getattr(GalaxyModel, i_key),
-                            j_key
-                        ):
+                        for j_key, priors_dict in priors[i_key].items():
 
-                            setattr(
+                            if hasattr(
                                 getattr(GalaxyModel, i_key),
-                                j_key,
-                                set_priors_helper(
-                                    dict=priors_dict
+                                j_key
+                            ):
+
+                                setattr(
+                                    getattr(GalaxyModel, i_key),
+                                    j_key,
+                                    set_priors_helper(
+                                        dict=priors_dict
+                                    )
                                 )
-                            )
 
 
 def update_phase_folders_from_setup(phase_folders, setup, source_type=None):
 
-    for setup_type in ["general", "source"]:
+    for setup_type in ["general", "source", "mass"]:
         if hasattr(setup, setup_type):
             obj = getattr(setup, setup_type)
 
@@ -108,12 +115,13 @@ def make_pipeline(
     lens_redshift,
     source_redshift,
     priors=None,
-    pipeline_name="pipeline_source__parametric",
+    pipeline_name="pipeline_mass__parametric",
     source_type="EllipticalSersic",
+    mass_type="EllipticalPowerLaw",
     transformer_class=al.TransformerNUFFT,
     auto_positions_factor=None,
     positions_threshold=None,
-    sub_size=2,
+    sub_size=1,
     evidence_tolerance=10.0,
 ):
 
@@ -121,6 +129,9 @@ def make_pipeline(
 
     setup.set_source_type(
         source_type=source_type
+    )
+    setup.set_mass_type(
+        mass_type=mass_type
     )
 
     update_phase_folders_from_setup(
@@ -135,7 +146,7 @@ def make_pipeline(
 
     lens = al.GalaxyModel(
         redshift=lens_redshift,
-        mass=al.mp.EllipticalIsothermal,
+        mass=getattr(al.mp, mass_type),
         shear=shear
     )
 
@@ -149,8 +160,18 @@ def make_pipeline(
             "{} is not supported".format(source_type)
         )
 
+    # NOTE:
+    set_priors(
+        GalaxyModels=[
+            lens,
+            source
+        ],
+        priors=priors
+    )
+
     phase1 = al.PhaseInterferometer(
-        phase_name="phase_1__lens_sie{}__source_{}".format(
+        phase_name="phase_1__lens_{}{}__source_{}".format(
+            mass_type,
             "_and_shear" if not setup.source.no_shear else '',
             source_type
         ),
