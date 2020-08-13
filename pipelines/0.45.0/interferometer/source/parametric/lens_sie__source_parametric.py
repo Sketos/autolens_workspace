@@ -149,7 +149,9 @@ def make_pipeline(
     if hasattr(al.lp, source_type):
         source = al.GalaxyModel(
             redshift=source_redshift,
-            light=getattr(al.lp, source_type)
+            light=getattr(
+                al.lp, source_type
+            )
         )
     else:
         raise AttributeError(
@@ -157,13 +159,14 @@ def make_pipeline(
         )
 
     # NOTE:
-    set_priors(
-        GalaxyModels=[
-            lens,
-            source
-        ],
-        priors=priors
-    )
+    if priors is not None:
+        set_priors(
+            GalaxyModels=[
+                lens,
+                source
+            ],
+            priors=priors
+        )
 
     phase1 = al.PhaseInterferometer(
         phase_name="phase_1__lens_sie{}__source_{}".format(
